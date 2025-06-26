@@ -1,33 +1,9 @@
-#include <Elegoo_GFX.h>    // Core graphics library
-#include "TouchScreen.h"
-#include <Elegoo_TFTLCD.h>
+// tuodaan kirjastot näytön käyttöä varten
+#include <Elegoo_GFX.h>     // Core graphics library
+#include <Elegoo_TFTLCD.h>  // Hardware-specific library
 
-#define YP A2  // must be an analog pin, use "An" notation!
-#define XM A3  // must be an analog pin, use "An" notation!
-#define YM 8   // can be a digital pin
-#define XP 9   // can be a digital pin
 
-#define TS_MINX 130
-#define TS_MAXX 905
-#define TS_MINY 75
-#define TS_MAXY 930
-#define MINPRESSURE 20
-
-Elegoo_GFX_Button buttons[5];
-
-TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
-TSPoint p;
-
-#define GRAY  0x8410
-
-uint8_t level, downSet, rotary, nextPiece, Piece, lop, lop2, lop3, lop4, row, column, color;
-uint16_t colRow[12][22];
-int16_t Score;
-
-bool check, next, win = false;
-bool start = false;
-unsigned long previousMillis = 0;
-unsigned long interval = 500;
+// luodaan vakiot 16-bittisille väriarvoille
 #define BLACK 0x0000
 #define BLUE 0x001F
 #define RED 0xF800
@@ -36,519 +12,782 @@ unsigned long interval = 500;
 #define MAGENTA 0xF81F
 #define YELLOW 0xFFE0
 #define WHITE 0xFFFF
+#define GRAY 0xCDCD
 
-Elegoo_TFTLCD tft(A3, A2, A1, A0, A4);
+// luodaan tft olio jolla ohjataan näyttöä ja määritetään TFT LCD:n käytäämät pinnit
+Elegoo_TFTLCD tft(A3, A2, A1, A0, A4); 
 
-const bool piece[20][16] = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 0, 1, 0, 0,  //1
-    0, 1, 0, 0,
-    0, 1, 0, 0,
-    0, 1, 0, 0
-  },
+// joystick
+// luodaan muutujat joystickin käyttöä varten
+int VRx = A14;
+int VRy = A15;
+int SW = 53;
 
-  { 0, 0, 0, 0,  //2
-    0, 0, 0, 0,
-    1, 1, 0, 0,
-    1, 1, 0, 0
-  },
+bool input = false;
 
-  { 0, 0, 0, 0,  //3
-    1, 0, 0, 0,
-    1, 0, 0, 0,
-    1, 1, 0, 0
-  },
+int xPosition = 0;
+int yPosition = 0;
+int SW_state = 0;
+int mapX = 0;
+int mapY = 0;
+// /joystick
 
-  { 0, 0, 0, 0,  //4
-    0, 1, 0, 0,
-    0, 1, 0, 0,
-    1, 1, 0, 0
-  },
+// globaali muutuja pisteiden laskua varten
+int playerScore = 0;
 
-  { 0, 0, 0, 0,  //5
-    0, 0, 0, 0,
-    0, 1, 0, 0,
-    1, 1, 1, 0
-  },
+//pelialue luodaan globaalina muuttujana
+//lähes kaikki funkitot joko lukevat tai kirjoittavat arvoja pelialueelle.
 
-  { 0, 0, 0, 0,  //6
-    0, 0, 0, 0,
-    0, 1, 1, 0,
-    1, 1, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //7
-    0, 0, 0, 0,
-    1, 1, 0, 0,
-    0, 1, 1, 0
-  },
-
-  { 0, 0, 0, 0,  //8
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    1, 1, 1, 1
-  },
-
-  { 0, 0, 0, 0,  //9
-    0, 0, 0, 0,
-    0, 0, 1, 0,
-    1, 1, 1, 0
-  },
-
-  { 0, 0, 0, 0,  //10
-    1, 1, 0, 0,
-    0, 1, 0, 0,
-    0, 1, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //11
-    0, 0, 0, 0,
-    1, 1, 1, 0,
-    1, 0, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //12
-    0, 0, 0, 0,
-    1, 1, 1, 0,
-    0, 0, 1, 0
-  },
-
-  { 0, 0, 0, 0,  //13
-    1, 1, 0, 0,
-    1, 0, 0, 0,
-    1, 0, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //14
-    0, 0, 0, 0,
-    1, 0, 0, 0,
-    1, 1, 1, 0
-  },
-
-  { 0, 0, 0, 0,  //15
-    0, 1, 0, 0,
-    1, 1, 0, 0,
-    0, 1, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //16
-    0, 0, 0, 0,
-    1, 1, 1, 0,
-    0, 1, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //17
-    1, 0, 0, 0,
-    1, 1, 0, 0,
-    1, 0, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //18
-    1, 0, 0, 0,
-    1, 1, 0, 0,
-    0, 1, 0, 0
-  },
-
-  { 0, 0, 0, 0,  //19
-    0, 1, 0, 0,
-    1, 1, 0, 0,
-    1, 0, 0, 0
-  }
+//      playArea[y][x]
+uint8_t playArea[23][10]{
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },  // (0,0) -> x+
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },  //   |
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },  //   Y+
+// kolme ylintä riviä ei näy näytöllä. uudetpalikat ja game over tilan testaus tapahtuu tämän alueen avulla.  
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
- 
+
+
+
+// määritetään ruudulle piirrettävien neliöiden koko pikseleeinä
+const int sqSize = 16;
+
+
+// määritetään palikkatyypit joita voi esiintyä näytöllä
+// erillaisia palikoita on 7
+// jokaisellla on neljä eri asentoa
+// toistuvat asennot on kuitenkin jätetty pois
+// esimerkiksi alla oleva neliö palikka ei muutu pyörittäessä jolloin sillä tarvitsee olla vain yksi asento.
+
+// palikat muodostuvat keskipalikan ympärille jolla on koordinaatti CB.loc muuttujassa.
+// allaoleva koodi muodostaa lopun muodosta keskipalikan ympärille suhteessa keskipalikkaan.
+// pyöritys tapahtuu keskipalikan ympäri.
+int blocks[19][3][2] = {
+
+
+  //[][]
+  //[][]
+  { { 1, 0 }, { 0, 1 }, { 1, 1 } },
+
+
+
+
+  //[][][]
+  //  []
+  { { 1, 0 }, { 0, 1 }, { -1, 0 } },
+
+  //[]
+  //[][]
+  //[]
+  { { 1, 0 }, { 0, 1 }, { 0, -1 } },
+
+  //  []
+  //[][][]
+  { { 1, 0 }, { 0, -1 }, { -1, 0 } },
+
+  //  []
+  //[][]
+  //  []
+  { { 0, 1 }, { 0, -1 }, { -1, 0 } },
+
+
+
+
+  //[][][][]
+  { { -1, 0 }, { 1, 0 }, { 2, 0 } },
+
+  //[]
+  //[]
+  //[]
+  //[]
+  { { 0, -1 }, { 0, 1 }, { 0, 2 } },
+
+
+
+
+  //  [][]
+  //[][]
+  { { 1, 0 }, { 0, 1 }, { -1, 1 } },
+
+  //[]
+  //[][]
+  //  []
+  { { 0, -1 }, { 1, 0 }, { 1, 1 } },
+
+
+
+
+  //[][]
+  //  [][]
+  { { -1, 0 }, { 0, 1 }, { 1, 1 } },
+
+  //  []
+  //[][]
+  //[]
+  { { 0, -1 }, { -1, 0 }, { -1, 1 } },
+
+
+
+
+  //    []
+  //[][][]
+  { { 1, -1 }, { -1, 0 }, { 1, 0 } },
+
+  //[][]
+  //  []
+  //  []
+  { { -1, -1 }, { 0, -1 }, { 0, 1 } },
+
+  //[][][]
+  //[]
+  { { -1, 0 }, { 1, 0 }, { -1, 1 } },
+
+  //[]
+  //[]
+  //[][]
+  { { 0, -1 }, { 0, 1 }, { 1, 1 } },
+
+
+
+
+  //[]
+  //[][][]
+  { { -1, -1 }, { -1, 0 }, { 1, 0 } },
+
+  //  []
+  //  []
+  //[][]
+  { { -1, 1 }, { 0, -1 }, { 0, 1 } },
+
+  //[][][]
+  //    []
+  { { -1, 0 }, { 1, 0 }, { 1, 1 } },
+
+  //[][]
+  //[]
+  //[]
+  { { 0, -1 }, { 0, 1 }, { 1, -1 } },
+
+};
+
+// määrittää alotus motojen indeksit blocks taulukosta uuden palikan luontia varten.
+int startShapes[7] = { 0, 1, 5, 7, 9, 11, 15 };
+
+// tämä struct säilyttää pelialueella olevan aktiivisen palikan tiedot
+struct {
+  int loc[2];  // location {x,y} keskipalikan sijainti koordinaatit
+  int shape; // blocks taulukon muoto joka on aktiivinen
+  int dir;  // direction suunta käytetään pyörittäessä seuraavan muodon hakemiseen
+  int type; // palikan tyyppi 1-7 määrittää mm. värin, käytetään myöskin pyörityksessä. 
+} CB;  //current block: luodun globaalin structin nimi
+
+// muuttujat ajan tallentamiseen
+unsigned long time = 0 , time2 = 0;
+// aika joka odotetaan napin painallusten välillä ennen kuin otetaan seuraava input
+int inputDelay = 40;
+
 
 void setup() {
-  // Timer 1
-
-  noInterrupts();
-  TCCR1A = 0;
-  TCCR1B = 0;
-
-  TCNT1 = 48000; 
-  TCCR1B |= (1 << CS12);
-  TIMSK1 |= (1 << TOIE1);
-  interrupts();          
+  
   Serial.begin(9600);
+
+  initJoy();
+  tft.begin(0x9341); // käynnistää näytön
+  tft.setRotation(2); // märittää näytön suunnan
+  aloitusRuutu(); // piirtää aloitusnäytön
+
+  // odottaa napin painallusta jatkamista varten
+  while(1){
+    if(joysticK() == 4){
+      break;
+    }
+  }
+  randomSeed(millis());  // pohjustaa satunnais numero generaattorin
+
+  drawUI(); // piirrä käyttöliittymä
+  drawPlayArea(); // piirrä pelialue
+  spawnBlock(); // luo ensimmäisen palikan aloittaen pelin
 }
-
-/*  ISR(TIMER1_OVF_vect)        
-{
-  TCNT1 = 48000;            
-  thisNote += 1;
-  if(thisNote==64) thisNote=0;
-  //iterate over the notes of the melody:
-    /*
-      to calculate the note duration, take one second divided by the note type.
-      e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
-    */
-
-    /*
-      to distinguish the notes, set a minimum time between them.
-      the note's duration + 30% seems to work well:
-     */
- 
-   
-    //noTone(A5); //stop the tone playing:
-//  }
-//  digitalWrite(A5,LOW);  } */
 void loop() {
-  for (lop = 1; lop < 11; lop++) {
-    for (lop2 = 1; lop2 < 21; lop2++) {
-      colRow[lop][lop2] = 0;
+
+  // liikuttaa palikkaa alaspäin ajoittain
+  if (millis() > time) {
+    move(2);
+    time = millis() + 500;
+  }
+  // liikuttaa palikkaa pelajan inputin mukaan
+  int dir = joysticK();
+  if (dir != -1) {
+    if (dir == 4) {
+      rotate();
+    } else move(dir);
+  }
+}
+
+// piirtää käyttöliitymän
+void drawUI(){
+  tft.setTextSize(2);
+  tft.fillScreen(GRAY);
+  tft.setCursor(165, 16);
+  tft.print("SCORE ");
+  tft.setCursor(165, 32);
+  tft.print("0");
+  // tft.setCursor(165, 64);
+  // tft.print("NEXT  ");
+}
+
+
+// Ottaa raa'an datan ja muuttaa ne ohjelman ymmärtämiksi inputeiksi
+// joystick
+int joysticK(){
+  
+  xPosition = analogRead(VRx);
+  yPosition = analogRead(VRy);
+  SW_state = digitalRead(SW);
+  mapX = map(xPosition, 0, 1023, -512, 512);
+  mapY = map(yPosition, 0, 1023, -512, 512);
+
+  if(!input){
+    if(mapX > 100){
+      input = true;
+      time2 = millis() + inputDelay;
+      return 2;
+    }else if(mapY > 100){
+      input = true;
+      time2 = millis() + inputDelay;
+      return 1;      
+    }else if(mapY < -100){
+      input = true;
+      time2 = millis() + inputDelay;
+      return 3;
+    }else if(!SW_state){
+      input = true;
+      time2 = millis() + inputDelay;
+      return 4;
+    }
+
+  }
+  if(input){
+    if(time2 < millis()){
+      input = false;
     }
   }
-  for (lop = 0; lop < 22; lop++) {
-    colRow[0][lop] = 21;
-    colRow[11][lop] = 21;
-  }
-  gameStart();
-  newBlock();
-  previousMillis = millis();
-  do {
-    if (millis() - previousMillis > interval) {
-      previousMillis = millis();
-      row += 1;
-      check = true;
-      checkDown();
-      if (check == false) newBlock();
-      else {
-        delPiece(column,row,Piece);
-        setPiece(column,row,Piece);
+  return -1;
+}
+// määrittää joystickin käyttämät pinnit
+void initJoy(){
+  pinMode(VRx, INPUT);
+  pinMode(VRy, INPUT);
+  pinMode(SW, INPUT_PULLUP);
+  pinMode(52, OUTPUT);
+  digitalWrite(52,HIGH);
+}
+// /joystick
+
+// tarkistaa kusuttaessa onko peli alueella täysiä rivejä poistaa ne ja palauttaa niiden lukumäärän
+int checkRows(){
+  int clears = 0;
+  bool rowClear;
+  for(int i = 22;i >= 0;i--){
+    rowClear = true;    
+    for(int j = 0;j<10;j++){
+      if(playArea[i][j] == 0){
+        rowClear = false;
       }
     }
-    readTouch();
-    if (p.z > MINPRESSURE) {
-      if ((buttons[3].contains(p.x, p.y)&&rotary==0)) {
-        switch(Piece){
-        case 1:
-          rotaryBlock(1, 8);
+    if(rowClear){
+      clearRow(i);
+      clears++;
+      i++;  
+    }
+    
+  }
+  drawPlayArea();
+  return clears;
+}
+
+// poistaa rivin ja siirtää ylemmät rivit alaspäin
+void clearRow(int row){
+  for(int i = row;i>= 1;i--){
+    for(int j = 0;j<10;j++){
+      playArea[i][j] = playArea[i-1][j];
+    }
+  }
+}
+
+// tarkistaa pelin tilan kun palikka jämähtää paikalleen
+int checkState(){
+  if(gameover()) return -1;
+  int rows = checkRows();
+  addScore(rows);
+  return 0;
+}
+
+// käy läpi ensimmäisen pelialueen ulkopuolella olevan rinvin. jos rivillä on muuta kuin 0 (eliseillä on palikka) lopettaa pelin
+bool gameover(){
+  for(int i = 0;i<10;i++){
+    if(playArea[2][i] != 0) return true;
+  }
+  drawPlayArea();
+  return false;
+}
+
+// seuraavan palikan tyypin arvonta
+int nextBlock() {
+
+  return random(1, 8);
+}
+
+// seuraavan palikan alustus ja luonti 
+void spawnBlock() {
+  CB.loc[0] = 4;
+  CB.loc[1] = 1;
+  CB.dir = 0;
+
+  CB.type = nextBlock();
+  CB.shape = startShapes[CB.type - 1];
+  writeBlock(CB.type);
+}
+
+//pyörittää palikkaa CB.type ja CB.dir muutujien perusteella valitsee seuraavan muodon
+void rotate() {
+  writeBlock(0); // poistaa palikan pelialueelta liikuttamista varten
+  int prewShape = CB.shape;// tallentaa aikaisemmat arvot jos liikkuminen ei ole mahdollista palauttaa nämä arvot
+  int prewDir = CB.dir;
+  switch (CB.type) {
+    case 1:
+      //[][]
+      //[][]
+      CB.shape = 0;
+      break;
+
+    case 2:
+      //[][][]
+      //  []
+      switch (CB.dir) {
+        case 0:
+          CB.shape = 2;
+          CB.dir = 1;
           break;
-        case 8:
-          rotaryBlock(8, 1);
-         break;
+
+        case 1:
+          CB.shape = 3;
+          CB.dir = 2;
+          break;
+
+        case 2:
+          CB.shape = 4;
+          CB.dir = 3;
+          break;
+
         case 3:
-          rotaryBlock(3, 9);
-         break;
-        case 9:
-          rotaryBlock(9, 10);
-        break;
-        case 10:
-        rotaryBlock(10, 11);
-        break;
-        case 11:
-          rotaryBlock(11, 3);
-        break;
-        case 4:
-          rotaryBlock(4, 12);
-        break;
-        case 12:
-          rotaryBlock(12, 13);
-        break;
-        case 13:
-        rotaryBlock(13, 14);
-        break;
-        case 14:
-          rotaryBlock(14, 4);
-        break;
-        case 5:
-          rotaryBlock(5, 15);
-        break;
-        case 15:
-          rotaryBlock(15, 16);
-        break;
-        case 16:
-          rotaryBlock(16, 17);
-        break;
-        case 17:
-          rotaryBlock(17, 5);
-        break;
-        case 6:
-          rotaryBlock(6, 18);
-        break;
-        case 18:
-        rotaryBlock(18, 6);
-        break;
-        case 7:
-          rotaryBlock(7, 19);
-        break;
-        case 19:
-          rotaryBlock(19, 7);
-        break;
-        }
-        rotary = 0;
-        delay(50);
-        }
-      if ((buttons[2].contains(p.x, p.y))) {
-        row += 1;
-        check = true;
-        checkDown();
-        if (check == false) newBlock();
-        else {
-          delPiece(column,row,Piece);
-          setPiece(column,row,Piece);
-          }
+          CB.shape = 1;
+          CB.dir = 0;
+          break;
       }
-      if ((buttons[1].contains(p.x, p.y))) {
-        column += 1;
-        check = true;
-        checkDown();
-        if (check == false) column -= 1;
-        else {
-          column -= 1;
-            row += 1;
-  delPiece(column,row,Piece);
-  column += 1;
-  row -= 1;
-  setPiece(column,row,Piece);
-        }
-      }
-      if ((buttons[0].contains(p.x, p.y))) {
-        column -= 1;
-        check = true;
-        checkDown();
-        if (check == false) column += 1;
-        else {
-          column += 1;
-  row += 1;
-  delPiece(column,row,Piece);
-  column -= 1;
-  row -= 1;
-  setPiece(column,row,Piece);
-        }
-      }
-      delay(100);
-    }
-  } while (!win);
-delay(1000);
-start=true;
-win=false;
+      break;
 
+    case 3:
+      //[][][][]
+      switch (CB.dir) {
+        case 0:
+        case 2:
+          CB.shape = 6;
+          CB.dir = 1;
+          break;
+
+        case 1:
+        case 3:
+          CB.shape = 5;
+          CB.dir = 0;
+          break;
+      }
+      break;
+
+    case 4:
+      //  [][]
+      //[][]
+      switch (CB.dir) {
+        case 0:
+        case 2:
+          CB.shape = 8;
+          CB.dir = 1;
+          break;
+
+        case 1:
+        case 3:
+          CB.shape = 7;
+          CB.dir = 0;
+          break;
+      }
+      break;
+
+    case 5:
+      //[][]
+      //  [][]
+      switch (CB.dir) {
+        case 0:
+        case 2:
+          CB.shape = 10;
+          CB.dir = 1;
+          break;
+
+        case 1:
+        case 3:
+          CB.shape = 9;
+          CB.dir = 0;
+          break;
+      }
+      break;
+
+    case 6:
+      //    []
+      //[][][]
+      switch (CB.dir) {
+        case 0:
+          CB.shape = 12;
+          CB.dir = 1;
+          break;
+
+        case 1:
+          CB.shape = 13;
+          CB.dir = 2;
+          break;
+
+        case 2:
+          CB.shape = 14;
+          CB.dir = 3;
+          break;
+
+        case 3:
+          CB.shape = 11;
+          CB.dir = 0;
+          break;
+      }
+      break;
+
+    case 7:
+      //[]
+      //[][][]
+      switch (CB.dir) {
+        case 0:
+          CB.shape = 16;
+          CB.dir = 1;
+          break;
+
+        case 1:
+          CB.shape = 17;
+          CB.dir = 2;
+          break;
+
+        case 2:
+          CB.shape = 18;
+          CB.dir = 3;
+          break;
+
+        case 3:
+          CB.shape = 15;
+          CB.dir = 0;
+          break;
+      }
+      break;
+  }
+  if (checkBound(4)) { // checkbound funktion palauttaman arvon perusteella liike hyväksytään tai hylätään
+    CB.shape = prewShape;
+    CB.dir = prewDir;
+    writeBlock(CB.type);
+  } else {
+    writeBlock(CB.type);  
+    drawPlayArea();
+  }
 }
 
+// tarkistaa onko uusi sijainti "laillinen"
+// suunta tarvitaan halutun testin määrittämiseen
 
-void checkDown() {
-  if (row > 20){ 
-    check = false;}
-  if (check == true){
-    if(row>0){ 
-    if((colRow[column + 3][row] > 20 && piece[Piece][15]) ||
-       (colRow[column + 2][row] > 20 && piece[Piece][14]) ||
-       (colRow[column + 1][row] > 20 && piece[Piece][13]) ||
-       (colRow[column + 0][row] > 20 && piece[Piece][12]))check = false;
-    }
-    if(row>1){
-     if((colRow[column + 3][row - 1] > 20 && piece[Piece][11]) ||
-       (colRow[column + 2][row - 1] > 20 && piece[Piece][10]) ||
-       (colRow[column + 1][row - 1] > 20 && piece[Piece][9]) ||
-       (colRow[column + 0][row - 1] > 20 && piece[Piece][8]))check = false;
-    }
-    if(row>2){
-     if((colRow[column + 3][row - 2] > 20 && piece[Piece][7]) ||
-       (colRow[column + 2][row - 2] > 20 && piece[Piece][6]) ||
-       (colRow[column + 1][row - 2] > 20 && piece[Piece][5]) ||
-       (colRow[column + 0][row - 2] > 20 && piece[Piece][4]))check = false;
-    }
-     if(row>3){
-     if((colRow[column + 3][row - 3] > 20 && piece[Piece][3]) ||
-       (colRow[column + 2][row - 3] > 20 && piece[Piece][2]) ||
-       (colRow[column + 1][row - 3] > 20 && piece[Piece][1]) ||
-       (colRow[column + 0][row - 3] > 20 && piece[Piece][0]))check = false;
-}
-}
-if(check==false && row==1){
-  start=true;
-  loop();
-}
-}
-void rotaryBlock(uint8_t oldPice, uint8_t newPice) {
-  Piece = newPice;
-  check = true;
-  checkDown();
-  if (check == false) Piece = oldPice;
-  else {
-    Piece = oldPice;
-    row += 1;
-    delPiece(column,row,Piece);
-    row -= 1;
-    Piece = newPice;
-    setPiece(column,row,Piece);
-  } rotary = 1;
-}
-void setPiece(uint8_t xx,uint8_t yy, uint8_t zz){
-  color=zz;
-  if(color==8) color=1;
-  if(color>8 && color<12) color=3;
-  if(color>11 && color <15) color=4;
-  if(color>14 && color <18) color=5;
-  if(color==18) color=6;
-  if(color==19) color=7;
-     if(yy>0){
-      if(piece[zz][15]) setBlock(xx + 3, yy,color+downSet);
-      if(piece[zz][14]) setBlock(xx + 2,yy,color+downSet);
-      if(piece[zz][13]) setBlock(xx + 1, yy,color+downSet);
-      if(piece[zz][12]) setBlock(xx + 0,yy,color+downSet);
+int checkBound(int dir) {
+  // return:
+  // 0 ok
+  // 1 sivu osuma operaatio ei ole mahdollinen
+  // 2 alas osuma operaatio ei mahdollinen ja palikka pysähtyy
+  switch (dir) {
+    //sivu liike
+    case 1:
+    case 3:
+      //tarkista reunat
+      // tarkistaa onko kaikkipalikat pelialueen sisällä      
+      if (CB.loc[0] < 0 || CB.loc[0] > 10) return 1;// keskipalkka
+      for (int i = 0; i < 3; i++) {
+        if ((CB.loc[0] + blocks[CB.shape][i][0]) < 0 || (CB.loc[0] + blocks[CB.shape][i][0]) > 9) return 1;// muut palikat
       }
-      if(yy>1){
-      //if(piece[zz][11]) setBlock(xx + 3, yy-1,color+downSet);
-      if(piece[zz][10]) setBlock(xx + 2,yy-1,color+downSet);
-      if(piece[zz][9]) setBlock(xx + 1, yy-1,color+downSet);
-      if(piece[zz][8]) setBlock(xx + 0,yy-1,color+downSet);
+      //tarkista palikat
+      // tarkistaa onko palikoiden kohdalla muita palikoita
+      if (playArea[CB.loc[1]][CB.loc[0]] != 0) return 1;
+      for (int i = 0; i < 3; i++) {
+        if (playArea[CB.loc[1] + blocks[CB.shape][i][1]][CB.loc[0] + blocks[CB.shape][i][0]] != 0) return 1;
       }
-      if(yy>2){
-      //if(piece[zz][7]) setBlock(xx + 3, yy-2,color+downSet);
-      if(piece[zz][6]) setBlock(xx + 2,yy-2,color+downSet);
-      if(piece[zz][5]) setBlock(xx + 1, yy-2,color+downSet);
-      if(piece[zz][4]) setBlock(xx + 0,yy-2,color+downSet);
+      break;
+
+    //alas liike
+    case 2:
+      //tarkista reunat
+      if (CB.loc[1] > 22) return 2;
+      for (int i = 0; i < 3; i++) {
+        if ((CB.loc[1] + blocks[CB.shape][i][1]) > 22) return 2;
       }
-      if(yy>3){
-      //if(piece[zz][3]) setBlock(xx + 3, yy-3,color+downSet);
-      if(piece[zz][2]) setBlock(xx + 2,yy-3,color+downSet);
-      if(piece[zz][1]) setBlock(xx + 1, yy-3,color+downSet);
-      if(piece[zz][0]) setBlock(xx + 0,yy-3,color+downSet);
+      //tarkista palikat
+      if (playArea[CB.loc[1]][CB.loc[0]] != 0) return 2;
+      for (int i = 0; i < 3; i++) {
+        if (playArea[CB.loc[1] + blocks[CB.shape][i][1]][CB.loc[0] + blocks[CB.shape][i][0]] != 0) return 2;
       }
-}
-void delPiece(uint8_t xxx,uint8_t yyy, uint8_t zzz){
-  if(yyy>1){
-      if(piece[zzz][15]) delBlock(xxx + 3, yyy-1);
-      if(piece[zzz][14]) delBlock(xxx + 2,yyy-1);
-      if(piece[zzz][13]) delBlock(xxx + 1, yyy-1);
-      if(piece[zzz][12]) delBlock(xxx + 0,yyy-1);
+      break;
+
+    //pyöritys
+    case 4:
+      //tarkista reunat
+      if (CB.loc[0] < 0 || CB.loc[0] > 10 || CB.loc[1] > 22) return 1;
+      for (int i = 0; i < 3; i++) {
+        if ((CB.loc[0] + blocks[CB.shape][i][0]) < 0 || (CB.loc[0] + blocks[CB.shape][i][0]) > 9 || (CB.loc[1] + blocks[CB.shape][i][1]) > 22) return 1;
       }
-      if(yyy>2){
-      //if(piece[zzz][11]) delBlock(xxx + 3, yyy-2);
-      if(piece[zzz][10]) delBlock(xxx + 2,yyy-2);
-      if(piece[zzz][9]) delBlock(xxx + 1, yyy-2);
-      if(piece[zzz][8]) delBlock(xxx + 0,yyy-2);
+      //tarkista palikat
+      if (playArea[CB.loc[1]][CB.loc[0]] != 0) return 1;
+      for (int i = 0; i < 3; i++) {
+        if (playArea[CB.loc[1] + blocks[CB.shape][i][1]][CB.loc[0] + blocks[CB.shape][i][0]] != 0) return 1;
       }
-      if(yyy>3){
-      //if(piece[zzz][7]) delBlock(xxx + 3, yyy-3);
-      if(piece[zzz][6]) delBlock(xxx + 2,yyy-3);
-      if(piece[zzz][5]) delBlock(xxx + 1, yyy-3);
-      if(piece[zzz][4]) delBlock(xxx + 0,yyy-3);
-      }
-      if(yyy>4){
-      //if(piece[zzz][3]) delBlock(xxx + 3, yyy-4);
-      if(piece[zzz][2]) delBlock(xxx + 2,yyy-4);
-      if(piece[zzz][1]) delBlock(xxx + 1, yyy-4);
-      if(piece[zzz][0]) delBlock(xxx + 0,yyy-4);
-      }
-}
-void delBlock(uint8_t x, uint8_t y) {
-  tft.fillRect(x * 20, y * 20 + 40, 18, 18, color);
-  if(!start) colRow[x][y] = 0;
-}
-void setBlock(uint8_t x, uint8_t y, uint8_t z) {
-  {
-    tft.fillRect(x * 20 + 1 , y * 20 + 41, 16, 16, color);
-    tft.drawRect(x * 20 , (y + 2) * 20 , 18, 18,  WHITE);
+      break;
+
+    default:
+      return -1;
   }
-  if(!start) colRow[x][y] = z;
+  return 0;
 }
-void newBlock() {
-  Score+=4;
-  downSet=20;
-  row-=1;
-  setPiece(column,row,Piece);
-  for (lop4 = 0; lop4 < 4; lop4++) {
-    lop = 21;
-    do {
-      lop -= 1;
-      if (colRow[1][lop] > 20 && colRow[2][lop] > 20 && colRow[3][lop] > 20 && colRow[4][lop] > 20 && colRow[5][lop] > 20
-          && colRow[6][lop] > 20 && colRow[7][lop] > 20 && colRow[8][lop] > 20 && colRow[9][lop] > 20 && colRow[10][lop] > 20) {
-            Score+=10;
-        for (lop2 = 1; lop2 < 11; lop2++) {
-          delBlock(lop2, lop);
-          lop3 = lop;
-          do {
-            lop3 -= 1;
-            if (colRow[lop2][lop3] > 0) {
-              setBlock(lop2, lop3 + 1, colRow[lop2][lop3]);
-            } else {
-              delBlock(lop2, lop3 + 1);
-            }
-          } while (lop3 > 0);
-         }
-        lop = 0;
-      }
-    } while (lop > 0);
+
+// kirjoittaa annetun arvon aktiivisen palikan paikalle playarea arrayhin
+void writeBlock(int val) {
+  playArea[CB.loc[1]][CB.loc[0]] = val;
+  for (int i = 0; i < 3; i++) {
+    playArea[CB.loc[1] + blocks[CB.shape][i][1]][CB.loc[0] + blocks[CB.shape][i][0]] = val;
   }
-  downSet=0;
-  tft.fillRect(240,90,60,14,BLUE);
-  tft.setTextSize(2);
-  tft.setCursor(240, 90);
-  tft.setTextColor(WHITE);
-  if(Score<10) {level=1;tft.print("0000"+String(Score));}
-  if(Score<100 && Score >9) {level=2;interval=400;tft.print("000"+String(Score));}
-  if(Score<1000 && Score >99) {level=3;interval=300;tft.print("00"+String(Score));}
-  if(Score<10000 && Score >999) {level=4; interval=200;tft.print("0"+String(Score));}
-  if(Score<100000 && Score >9999) {level=5;interval=100;tft.print(Score);}
-  tft.fillRect(265,140,14,14,BLUE);
-  tft.setCursor(265, 140);
-  tft.print(level);
-  Piece=nextPiece;
-  tft.fillRect(240,200,80,80,BLUE);
-  nextPiece=random(1,20);
-  start=true;
-  setPiece(12,11,nextPiece);
-  start=false;
-  column = 6;
-  row = 0;
+}
+
+// liikuttaa palikkaa muuttamalla CB.loc arvoja
+void move(int dir) {
+  // tallenna aikaisempi sijainti 
+  int prewX = CB.loc[0];
+  int prewY = CB.loc[1];
+  writeBlock(0);
+  //drawBlock(0);
+  switch (dir) {
+    case 1:  //vasemmalle
+      CB.loc[0] -= 1;
+      break;
+    case 2:  //alas
+      CB.loc[1] += 1;
+      break;
+    case 3:  //oikealle
+      CB.loc[0] += 1;
+      break;
+    default:
+      break;
   }
-void gameStart() {
-  nextPiece=random(1,20);
-  Score=-4;
-  if(!start){
-  tft.fillScreen(BLUE);
+  int result = checkBound(dir);
+  if (result) {
+    CB.loc[0] = prewX;
+    CB.loc[1] = prewY;
+    writeBlock(CB.type);
+    if (result == 2) {  // jos checkbound antaa arvon 2 tarkistetaan pelin tila ja jatketaan seuraavalle kierrokselle 
+      if(checkState()== -1) reset();
+      spawnBlock();
+
+    }
+  } else {
+    writeBlock(CB.type);
+    drawPlayArea();
+  }
+}
+
+// piirtää game over tekstin näytölle
+void gameOverScreen(){
+  tft.fillRect(0, 130, 240, 60, BLACK);
   tft.setTextSize(4);
-  tft.setCursor(32, 15);
-  tft.setTextColor(WHITE);
-  tft.print("T E T R I S");
-  tft.setCursor(30, 12);
-  tft.setTextColor(BLACK);
-  tft.print("T E T R I S");
-  tft.fillRect(20, 60, 200, 400, BLACK);
-  tft.setTextSize(2);
-  tft.setCursor(240, 70);
-  tft.setTextColor(WHITE);
-  tft.print("Score");
-  tft.setCursor(240, 90);
-  tft.print("00000");
-  tft.setCursor(240, 120);
-  tft.print("Level");
-  buttons[0].initButton(&tft, 246, 416, 45, 30, WHITE, GREEN, BLACK, "<", 1);
-  buttons[0].drawButton();
-  buttons[1].initButton(&tft, 294, 416, 45, 30, WHITE, GREEN, BLACK, ">", 1);
-  buttons[1].drawButton();
-  buttons[2].initButton(&tft, 270, 450, 45, 30, WHITE, GREEN, BLACK, "D", 1);
-  buttons[2].drawButton();
-  buttons[3].initButton(&tft, 270, 382, 45, 30, WHITE, GREEN, BLACK, "R", 1);
-  buttons[3].drawButton();
-  }
-rollo();
+  tft.setCursor(14, 135);
+  tft.print("GAME OVER");
+  tft.setTextSize(1);
+  tft.setCursor(40, 173);
+  tft.print("Press button to play again");
+// odottaa napinpainallusta  jatkaakseen
+  while(1){
+    if(joysticK() == 4){
+      break;
+    }
+  }  
 }
 
+// nollaa pelialueen ja muita arvoja uutta peliä varten
+void reset(){
+  gameOverScreen();
+  for (int i = 0; i < 23; i++) {
 
-void readTouch() {
-  p = ts.getPoint();
-  p.x = p.x + p.y;
-  p.y = p.x - p.y;
-  p.x = p.x - p.y;
-  p.x = map(p.x, TS_MINX, TS_MAXX, tft.width(), 0);
-  p.y = tft.height() - (map(p.y, TS_MINY, TS_MAXY, tft.height(), 0));
+    for (int j = 0; j < 10; j++) {
+      playArea[i][j]=0;
+    }
+  }
+  
+  CB.dir = 0;
+  CB.shape = 0;
+  CB.type = 0;
+  CB.loc[0]= 0;
+  CB.loc[1]= 0;
+  playerScore = 0;
+  drawUI();
+  drawPlayArea();  
+  printScore();
 }
 
-void rollo(){
-    start=true;
-  for(lop=1;lop<21;lop++){
-  for(lop2=1;lop2<11;lop2++){
-  setBlock(lop2, lop,2);
+// käy läpi playArea arrayn kolme ensimmäistä riviä poislukien ja piirtää koordinaattien mukaan ja arvojen perusteella Play area arrayn sisällön näytölle.
+void drawPlayArea() {
+  uint16_t color;
+  //tulostaa pelialueen globaalista muuttujasta näytölle
+  for (int i = 0; i < 20; i++) {
+
+    for (int j = 0; j < 10; j++) {
+      switch (playArea[i + 3][j]) {
+        case 0:
+          color = BLACK;
+          break;
+        case 1:
+          color = RED;
+          break;
+        case 2:
+          color = BLUE;
+          break;
+        case 3:
+          color = YELLOW;
+          break;
+        case 4:
+          color = CYAN;
+          break;
+        case 5:
+          color = MAGENTA;
+          break;
+        case 6:
+          color = 0xABBA;
+          break;
+        case 7:
+          color = GREEN;
+          break;
+        default:
+          color = WHITE;
+          break;
+      }
+      // !!! muuttujat i ja j ovat eripäin kuin playArea arrayssä
+      tft.fillRect(j * sqSize, i * sqSize, sqSize, sqSize, color);
+      if (!color == BLACK) {
+        tft.drawRect(j * sqSize, i * sqSize, sqSize, sqSize, WHITE);
+      }
+    }
   }
+}
+
+// tulostaa pisteet näytölle
+void printScore()
+{
+  tft.fillRect(165, 32, 75, 32, GRAY);
+  tft.setCursor(165, 32);  
+  tft.print(playerScore);
+}
+
+// lisää pisteeitä täytettyjen rivien määrän mukaan
+void addScore(int rows)
+{
+  switch (rows)
+  {
+    case 1: playerScore += 100;
+    break;
+    case 2: playerScore += 300;
+    break;
+    case 3: playerScore += 500;
+    break;
+    case 4: playerScore += 1200;
+    break;
+    default:
+    playerScore += 25;
   }
-  delay(250);
-  for(lop=20;lop>0;lop--){
-  for(lop2=10;lop2>0;lop2--){
-  delBlock(lop2, lop);
-  }
-    start=false;
-    delay(20);
-  }
+printScore();
+}
+
+// piirtää aloitus ruudun grafiikan näytölle
+void aloitusRuutu(void) {
+    
+tft.fillScreen(BLACK); 
+
+tft.setTextColor(RED);
+tft.setTextSize(2);
+tft.setCursor(0, 0);
+tft.println("|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|__|");
+
+  tft.fillRect(45, 50, 145, 50, MAGENTA); 
+  tft.drawRect(45, 50, 145, 50, CYAN); 
+  tft.fillRect(90, 99, 50, 50, MAGENTA);
+  tft.drawLine(90, 99, 90, 149, CYAN);
+  tft.drawLine(90, 149, 140, 149, CYAN);
+  tft.drawLine(140, 149, 140, 99, CYAN);
+
+  tft.setTextColor(CYAN); 
+  tft.setTextSize(3); 
+  tft.setCursor(67, 65); 
+  tft.println("T"); 
+
+  tft.setTextColor(YELLOW); 
+  tft.setTextSize(3); 
+  tft.setCursor(85, 65); 
+  tft.println("E");
+
+  tft.setTextColor(GREEN); 
+  tft.setTextSize(3); 
+  tft.setCursor(103, 65); 
+  tft.println("T");
+
+  tft.setTextColor(YELLOW); 
+  tft.setTextSize(3); 
+  tft.setCursor(121, 65); 
+  tft.println("R");
+
+tft.setTextColor(GREEN); 
+  tft.setTextSize(3); 
+  tft.setCursor(134, 65); 
+  tft.println("I");
+
+  tft.setTextColor(CYAN); 
+  tft.setTextSize(3); 
+  tft.setCursor(147, 65); 
+  tft.println("S");
+
+tft.setTextColor(CYAN); 
+  tft.setTextSize(2); 
+  tft.setCursor(45, 250); 
+  tft.println("Press button          to play!"); 
+
+
+//delay(10000);  //Tämä pyyhitään kun nappi aktivoidaan
+
 }
